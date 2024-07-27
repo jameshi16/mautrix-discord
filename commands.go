@@ -705,8 +705,23 @@ func fnBridge(ce *WrappedCommandEvent) {
 	}
 	portal := ce.User.GetExistingPortalByID(channelID)
 	if portal == nil {
-		ce.Reply("Channel not found")
-		return
+		// HACK: Before giving up, discover if the user is trying to join a
+		// thread. Then, cause the creation of a portal.
+		// This is for forum channel threads; they don't show up on the
+		// forum channels.
+		ch, err := ce.User.Session.Channel(channelID)
+		if err != nil {
+			ce.Reply("Channel not found")
+			return
+		}
+
+		if ch.Type != discordgo.ChannelTypeGuildPublicThread &&
+			ch.Type != discordgo.ChannelTypeGuildPrivateThread {
+			return
+		}
+
+		ce.ZLog.Debug().Msg("Adding public / private thread as a portal")
+		portal = ce.User.GetPortalByID(channelID, ch.Type)
 	}
 	portal.roomCreateLock.Lock()
 	defer portal.roomCreateLock.Unlock()
